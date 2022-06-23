@@ -1,0 +1,16 @@
+[package]
+name = "samcomp"
+version = "0.1.0"
+edition = "2021"
+authors = ["Julien Eudine <julien@eudine.fr>"]
+description = "A comparison tool for Sequence Alignment/Map files."
+license = "MIT"
+readme = "README.adoc"
+repository = "https://github.com/jeudine/samcomp"
+categories = ["science", "command-line-utilities"]
+
+[dependencies]
+getopts = "0.2"
+
+[profile.release]
+opt-level = 3
