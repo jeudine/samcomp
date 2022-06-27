@@ -36,7 +36,10 @@ fn main() {
 
 	let matches = match opts.parse(&args[1..]) {
 		Ok(m) => m,
-		Err(f) => panic!("{}", f.to_string()),
+		Err(f) => {
+			eprintln!("[ERROR]: {}", f.to_string());
+			process::exit(1);
+		}
 	};
 
 	if matches.opt_present("h") {
@@ -46,10 +49,7 @@ fn main() {
 
 	let output = matches.opt_str("o");
 
-	let distance: f32 = match matches.opt_str("d") {
-		Some(d) => d.parse().unwrap(),
-		None => 1.0,
-	};
+	let distance: f32 = matches.opt_get_default("d", 1.0).unwrap();
 
 	let qualities: Vec<u8> = match matches.opt_str("q") {
 		Some(q) => q.split(',').map(|x| x.parse().unwrap()).collect(),
@@ -62,10 +62,22 @@ fn main() {
 	}
 
 	let path = Path::new(&matches.free[0]);
-	let sam_tgt = parse_sam(&path);
-	let path = Path::new(&matches.free[1]);
-	let sam_test = parse_sam(&path);
+	let sam_tgt = match parse_sam(&path) {
+		Ok(sam_tgt) => sam_tgt,
+		Err(err) => {
+			eprintln!("[ERROR]: {},", err);
+			process::exit(1);
+		}
+	};
 
+	let path = Path::new(&matches.free[1]);
+	let sam_test = match parse_sam(&path) {
+		Ok(sam_test) => sam_test,
+		Err(err) => {
+			eprintln!("[ERROR]: {},", err);
+			process::exit(1);
+		}
+	};
 	//sam_tgt.iter().for_each(|x| println!("{}\t", x));
 	if sam_tgt.len() != sam_test.len() {
 		eprintln!(
@@ -78,10 +90,7 @@ fn main() {
 
 	eprintln!("[INFO]: {} reads", sam_tgt.len());
 
-	match output {
-		Some(output) => compare_sam_output(&sam_tgt, &sam_test, distance, &qualities, &output),
-		None => compare_sam(&sam_tgt, &sam_test, distance, &qualities),
-	}
+	compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output);
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -136,10 +145,10 @@ impl fmt::Display for Mapped {
 			if self.strand { '-' } else { '+' },
 			self.mapq,
 			self.als
-		);
-		self.secondaries.iter().for_each(|x| {
-			write!(f, "\t[{}\t{}\t{}\t{}]", x.rname, x.pos, x.strand, x.als);
-		});
+		)?;
+		self.secondaries
+			.iter()
+			.try_for_each(|x| write!(f, "\t[{}\t{}\t{}\t{}]", x.rname, x.pos, x.strand, x.als))?;
 		fmt::Result::Ok(())
 	}
 }
@@ -159,13 +168,13 @@ impl fmt::Display for Sam {
 	}
 }
 
-fn parse_sam(path: &Path) -> Vec<Sam> {
+fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 	let file = match File::open(&path) {
-		Err(why) => panic!("open {}: {}", path.display(), why),
+		Err(why) => return Err(format!("open {}: {}", path.display(), why)),
 		Ok(file) => file,
 	};
 	let reader = BufReader::new(&file);
-	reader.lines().fold(Vec::new(), |mut sam, line| {
+	reader.lines().try_fold(Vec::new(), |mut sam, line| {
 		let line = line.unwrap();
 		let field: Vec<_> = line.split('\t').collect();
 
@@ -204,7 +213,11 @@ fn parse_sam(path: &Path) -> Vec<Sam> {
 						},
 					}),
 					Sam::Unmapped(x) => {
-						panic!("Unmapped sequence with a secondary alignment: {}", x.qname)
+						return Err(format!(
+							"Unmapped sequence with a secondary alignment: {} {}",
+							path.display(),
+							x.qname
+						));
 					}
 				}
 			}
@@ -222,10 +235,11 @@ fn parse_sam(path: &Path) -> Vec<Sam> {
 						}
 					}
 					Sam::Unmapped(x) => {
-						panic!(
-							"Unmapped sequence with a supplementary alignment: {}",
+						return Err(format!(
+							"Unmapped sequence with a supplementary alignment: {} {}",
+							path.display(),
 							x.qname
-						)
+						));
 					}
 				}
 			}
@@ -236,13 +250,14 @@ fn parse_sam(path: &Path) -> Vec<Sam> {
 					len: field[9].len() as u32,
 				}))
 			} else {
-				panic!("Unknown flag: {}", line);
+				return Err(format!("Unknown flag: {} {}", path.display(), line));
 			}
 		}
-		sam
+		Ok(sam)
 	})
 }
 
+/*
 fn compare_sam_output(
 	tgt: &Vec<Sam>,
 	test: &Vec<Sam>,
@@ -250,17 +265,7 @@ fn compare_sam_output(
 	qualities: &Vec<u8>,
 	output: &str,
 ) {
-	let name = format!("{}_gain.txt", output);
-	let path = Path::new(&name);
-	let mut gain_file = File::create(path).unwrap();
 
-	let name = format!("{}_loss.txt", output);
-	let path = Path::new(&name);
-	let mut loss_file = File::create(path).unwrap();
-
-	let name = format!("{}_diff.txt", output);
-	let path = Path::new(&name);
-	let mut diff_file = File::create(path).unwrap();
 
 	let iter = zip(tgt, test);
 
@@ -299,9 +304,35 @@ fn compare_sam_output(
 		}
 	});
 }
+*/
 
-fn compare_sam(tgt: &Vec<Sam>, test: &Vec<Sam>, distance: f32, qualities: &Vec<u8>) {
+fn compare_sam(
+	tgt: &Vec<Sam>,
+	test: &Vec<Sam>,
+	distance: f32,
+	qualities: &Vec<u8>,
+	output: &Option<String>,
+) -> std::io::Result<()> {
 	let iter = zip(tgt, test);
+
+	let mut files: Option<(File, File, File)> = match output {
+		Some(output) => {
+			let name = format!("{}_gain.txt", output);
+			let path = Path::new(&name);
+			let mut gain_file = File::create(path)?;
+
+			let name = format!("{}_loss.txt", output);
+			let path = Path::new(&name);
+			let mut loss_file = File::create(path)?;
+
+			let name = format!("{}_diff.txt", output);
+			let path = Path::new(&name);
+			let mut diff_file = File::create(path)?;
+
+			Some((gain_file, loss_file, diff_file))
+		}
+		None => None,
+	};
 
 	let gain = 0;
 	let loss = 0;
@@ -340,4 +371,6 @@ fn compare_sam(tgt: &Vec<Sam>, test: &Vec<Sam>, distance: f32, qualities: &Vec<u
 			},
 		}
 	});
+
+	Ok(())
 }
