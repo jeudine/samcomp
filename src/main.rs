@@ -3,6 +3,7 @@ use getopts::Options;
 use std::env::args;
 use std::fmt;
 use std::fs::File;
+use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::iter::zip;
 use std::path::Path;
@@ -78,6 +79,7 @@ fn main() {
 			process::exit(1);
 		}
 	};
+
 	//sam_tgt.iter().for_each(|x| println!("{}\t", x));
 	if sam_tgt.len() != sam_test.len() {
 		eprintln!(
@@ -90,7 +92,13 @@ fn main() {
 
 	eprintln!("[INFO]: {} reads", sam_tgt.len());
 
-	compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output);
+	match compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output) {
+		Err(err) => {
+			eprintln!("[ERORR]: {}", err);
+			process::exit(1);
+		}
+		_ => {}
+	}
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -312,7 +320,7 @@ fn compare_sam(
 	distance: f32,
 	qualities: &Vec<u8>,
 	output: &Option<String>,
-) -> std::io::Result<()> {
+) -> io::Result<()> {
 	let iter = zip(tgt, test);
 
 	let mut files: Option<(File, File, File)> = match output {
