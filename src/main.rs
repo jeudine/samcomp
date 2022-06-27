@@ -3,7 +3,6 @@ use getopts::Options;
 use std::env::args;
 use std::fmt;
 use std::fs::File;
-use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::iter::zip;
 use std::path::Path;
@@ -31,8 +30,14 @@ fn main() {
 	opts.optopt(
 		"q",
 		"",
-		"Output the results using UINT1,UINT2,... as the quality thresholds [60,10,1,0].",
+		"Output the results using UINT1,UINT2,UINT3,... (such as UINT1 > UINT2 > UINT3) as the quality thresholds [60,10,1,0].",
 		"INT1,INT2,...",
+	);
+
+	opts.optflag(
+		"p",
+		"",
+		"Ignore the secondary alignments of the target file.",
 	);
 
 	let matches = match opts.parse(&args[1..]) {
@@ -56,6 +61,8 @@ fn main() {
 		Some(q) => q.split(',').map(|x| x.parse().unwrap()).collect(),
 		None => [60, 10, 1, 0].to_vec(),
 	};
+
+	let p_only = matches.opt_present("p");
 
 	if matches.free.len() != 2 {
 		print_usage(&program, opts);
@@ -92,7 +99,7 @@ fn main() {
 
 	eprintln!("[INFO]: {} reads", sam_tgt.len());
 
-	match compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output) {
+	match compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, p_only) {
 		Err(err) => {
 			eprintln!("[ERORR]: {}", err);
 			process::exit(1);
@@ -265,88 +272,52 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 	})
 }
 
-/*
-fn compare_sam_output(
-	tgt: &Vec<Sam>,
-	test: &Vec<Sam>,
-	distance: f32,
-	qualities: &Vec<u8>,
-	output: &str,
-) {
-
-
-	let iter = zip(tgt, test);
-
-	iter.for_each(|x| {
-		let tgt = x.0;
-		let test = x.1;
-
-		match tgt {
-			Sam::Mapped(tgt) => match test {
-				Sam::Mapped(test) => {
-					let distance = (distance * tgt.len as f32).ceil() as u32;
-					if test.rname != tgt.rname
-						|| test.strand != tgt.strand
-						|| test.pos_max < tgt.pos_min - distance
-						|| test.pos_min > tgt.pos_max + distance
-					{
-						let res = test.secondaries.iter().try_for_each(|x| {
-							if x.rname == tgt.rname {
-								None
-							} else {
-								Some(())
-							}
-						});
-						match res {
-							None => {}
-							Some(_) => {}
-						}
-					}
-				}
-				Sam::Unmapped(_) => writeln!(&mut loss_file, "{}", tgt).unwrap(),
-			},
-			Sam::Unmapped(_) => match test {
-				Sam::Mapped(test) => writeln!(&mut gain_file, "{}", test).unwrap(),
-				Sam::Unmapped(_) => {}
-			},
-		}
-	});
-}
-*/
-
 fn compare_sam(
 	tgt: &Vec<Sam>,
 	test: &Vec<Sam>,
 	distance: f32,
 	qualities: &Vec<u8>,
 	output: &Option<String>,
-) -> io::Result<()> {
-	let iter = zip(tgt, test);
+	p_only: bool,
+) -> Result<(), String> {
+	let mut iter = zip(tgt, test);
 
 	let mut files: Option<(File, File, File)> = match output {
 		Some(output) => {
 			let name = format!("{}_gain.txt", output);
 			let path = Path::new(&name);
-			let mut gain_file = File::create(path)?;
+			let gain_file = match File::create(path) {
+				Err(err) => return Err(format!("{}", err)),
+				Ok(f) => f,
+			};
 
 			let name = format!("{}_loss.txt", output);
 			let path = Path::new(&name);
-			let mut loss_file = File::create(path)?;
+
+			let loss_file = match File::create(path) {
+				Err(err) => return Err(format!("{}", err)),
+				Ok(f) => f,
+			};
 
 			let name = format!("{}_diff.txt", output);
 			let path = Path::new(&name);
-			let mut diff_file = File::create(path)?;
+			let diff_file = match File::create(path) {
+				Err(err) => return Err(format!("{}", err)),
+				Ok(f) => f,
+			};
 
 			Some((gain_file, loss_file, diff_file))
 		}
 		None => None,
 	};
 
-	let gain = 0;
-	let loss = 0;
-	let diff = 0;
+	let qualities_len = qualities.len();
 
-	iter.for_each(|x| {
+	let mut gain: Vec<u32> = vec![0; qualities_len];
+	let mut loss: Vec<u32> = vec![0; qualities_len];
+	let mut diff: Vec<u32> = vec![0; qualities_len];
+
+	iter.try_for_each(|x| {
 		let tgt = x.0;
 		let test = x.1;
 		match tgt {
@@ -371,14 +342,42 @@ fn compare_sam(
 						}
 					}
 				}
-				Sam::Unmapped(_) => {}
+				Sam::Unmapped(_) => {
+					increase_counter(&mut loss, &qualities, tgt.mapq);
+					if let Some((_, file, _)) = &mut files {
+						match writeln!(file, "{}", tgt) {
+							Err(err) => return Err(format!("{}", err)),
+							Ok(_) => {}
+						};
+					}
+				}
 			},
 			Sam::Unmapped(_) => match test {
-				Sam::Mapped(test) => {}
+				Sam::Mapped(test) => {
+					increase_counter(&mut gain, &qualities, test.mapq);
+					if let Some((file, _, _)) = &mut files {
+						match writeln!(file, "{}", tgt) {
+							Err(err) => return Err(format!("{}", err)),
+							Ok(_) => {}
+						};
+					}
+				}
 				Sam::Unmapped(_) => {}
 			},
 		}
-	});
+		Ok(())
+	})?;
 
 	Ok(())
+}
+
+#[inline]
+fn increase_counter(count: &mut Vec<u32>, qualities: &Vec<u8>, quality: u8) {
+	let iter = zip(count, qualities);
+	for i in iter {
+		if quality > *i.1 {
+			*i.0 += 1;
+			break;
+		}
+	}
 }
