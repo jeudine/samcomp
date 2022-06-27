@@ -17,9 +17,23 @@ fn main() {
 	opts.optopt(
 		"o",
 		"",
-		"Generate gain, loss and diff files and output them with the prefix NAME",
+		"Generate gain, loss and diff files and output them with the prefix NAME.",
 		"NAME",
 	);
+
+	opts.optopt("d",
+				"",
+				"A location in the tested file is considered to be similar to the one in the target file if the distance between both locations is less than FLOAT fraction of the read length [1.0].",
+				"FLOAT",
+	);
+
+	opts.optopt(
+		"q",
+		"",
+		"Output the results using UINT1,UINT2,... as the quality thresholds [60,10,1,0].",
+		"INT1,INT2,...",
+	);
+
 	let matches = match opts.parse(&args[1..]) {
 		Ok(m) => m,
 		Err(f) => panic!("{}", f.to_string()),
@@ -31,6 +45,16 @@ fn main() {
 	}
 
 	let output = matches.opt_str("o");
+
+	let distance: f32 = match matches.opt_str("d") {
+		Some(d) => d.parse().unwrap(),
+		None => 1.0,
+	};
+
+	let qualities: Vec<u8> = match matches.opt_str("q") {
+		Some(q) => q.split(',').map(|x| x.parse().unwrap()).collect(),
+		None => [60, 10, 1, 0].to_vec(),
+	};
 
 	if matches.free.len() != 2 {
 		print_usage(&program, opts);
@@ -55,41 +79,9 @@ fn main() {
 	eprintln!("[INFO]: {} reads", sam_tgt.len());
 
 	match output {
-		Some(output) => compare_sam_output(&sam_tgt, &sam_test, &output),
-		None => compare_sam(&sam_tgt, &sam_test),
+		Some(output) => compare_sam_output(&sam_tgt, &sam_test, distance, &qualities, &output),
+		None => compare_sam(&sam_tgt, &sam_test, distance, &qualities),
 	}
-
-	/*
-	let (same, gain, loss, diff) = iter.fold((0, 0, 0, 0), |(same, gain, loss, diff), ref x| {
-		if x.0.flag == 4 {
-			if x.1.flag == 4 {
-				(same, gain, loss, diff)
-			} else {
-				writeln!(&mut loss_file, "{}", x.1.qname).unwrap();
-				(same, gain, loss + 1, diff)
-			}
-		} else {
-			if x.1.flag == 4 {
-				(same, gain + 1, loss, diff)
-			} else {
-				if x.0.rname.eq(&x.1.rname)
-					&& x.0.flag == x.1.flag
-					&& (x.1.pos as i32 - x.0.pos as i32).abs() <= 10000
-				{
-					(same + 1, gain, loss, diff)
-				} else {
-					writeln!(&mut diff_file, "{}", x.1.qname).unwrap();
-					(same, gain, loss, diff + 1)
-				}
-			}
-		}
-	});
-	let total = same + gain + loss + diff;
-	println!("same: {}%", (same * 100) as f32 / total as f32);
-	println!("gain: {}%", (gain * 100) as f32 / total as f32);
-	println!("loss: {}%", (loss * 100) as f32 / total as f32);
-	println!("different: {}%", (diff * 100) as f32 / total as f32);
-	*/
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -251,7 +243,13 @@ fn parse_sam(path: &Path) -> Vec<Sam> {
 	})
 }
 
-fn compare_sam_output(tgt: &Vec<Sam>, test: &Vec<Sam>, output: &str) {
+fn compare_sam_output(
+	tgt: &Vec<Sam>,
+	test: &Vec<Sam>,
+	distance: f32,
+	qualities: &Vec<u8>,
+	output: &str,
+) {
 	let name = format!("{}_gain.txt", output);
 	let path = Path::new(&name);
 	let mut gain_file = File::create(path).unwrap();
@@ -273,10 +271,11 @@ fn compare_sam_output(tgt: &Vec<Sam>, test: &Vec<Sam>, output: &str) {
 		match tgt {
 			Sam::Mapped(tgt) => match test {
 				Sam::Mapped(test) => {
+					let distance = (distance * tgt.len as f32).ceil() as u32;
 					if test.rname != tgt.rname
 						|| test.strand != tgt.strand
-						|| test.pos_max < tgt.pos_min - tgt.len
-						|| test.pos_min > tgt.pos_max + tgt.len
+						|| test.pos_max < tgt.pos_min - distance
+						|| test.pos_min > tgt.pos_max + distance
 					{
 						let res = test.secondaries.iter().try_for_each(|x| {
 							if x.rname == tgt.rname {
@@ -301,20 +300,24 @@ fn compare_sam_output(tgt: &Vec<Sam>, test: &Vec<Sam>, output: &str) {
 	});
 }
 
-fn compare_sam(tgt: &Vec<Sam>, test: &Vec<Sam>) {
+fn compare_sam(tgt: &Vec<Sam>, test: &Vec<Sam>, distance: f32, qualities: &Vec<u8>) {
 	let iter = zip(tgt, test);
+
+	let gain = 0;
+	let loss = 0;
+	let diff = 0;
 
 	iter.for_each(|x| {
 		let tgt = x.0;
 		let test = x.1;
-
 		match tgt {
 			Sam::Mapped(tgt) => match test {
 				Sam::Mapped(test) => {
+					let distance = (distance * tgt.len as f32).ceil() as u32;
 					if test.rname != tgt.rname
 						|| test.strand != tgt.strand
-						|| test.pos_max < tgt.pos_min - tgt.len
-						|| test.pos_min > tgt.pos_max + tgt.len
+						|| test.pos_max < tgt.pos_min - distance
+						|| test.pos_min > tgt.pos_max + distance
 					{
 						let res = test.secondaries.iter().try_for_each(|x| {
 							if x.rname == tgt.rname {

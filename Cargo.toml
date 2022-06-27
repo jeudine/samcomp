@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Julien Eudine <julien@eudine.fr>"]
 description = "A comparison tool for Sequence Alignment/Map files."
 license = "MIT"
-readme = "README.adoc"
+readme = "README.md"
 repository = "https://github.com/jeudine/samcomp"
 categories = ["science", "command-line-utilities"]
 
