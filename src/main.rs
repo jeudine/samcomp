@@ -17,27 +17,31 @@ fn main() {
 	opts.optopt(
 		"o",
 		"",
-		"Generate gain, loss and diff files and output them with the prefix NAME.",
+		"generate gain, loss and diff files and output them with the prefix NAME",
 		"NAME",
 	);
 
 	opts.optopt("d",
 				"",
-				"A location in the tested file is considered to be similar to the one in the target file if the distance between both locations is less than FLOAT fraction of the read length [1.0].",
+				"a location in the tested file is considered to be similar to the one in the target file if the distance between both locations is less than FLOAT fraction of the read length [1.0]",
 				"FLOAT",
 	);
 
 	opts.optopt(
 		"q",
 		"",
-		"Output the results using UINT1,UINT2,UINT3,... (such as UINT1 > UINT2 > UINT3) as the quality thresholds [60,10,1,0].",
-		"INT1,INT2,...",
+		"output the results using UINT1,UINT2,... (such as UINT1 > UINT2 > ...) as the quality thresholds [60,10,1,0]",
+		"UINT1,UINT2,...",
 	);
 
-	opts.optflag(
-		"p",
+	opts.optopt(
+		"m",
 		"",
-		"Ignore the secondary alignments of the target file.",
+		"Comparison mode [all]\n \
+		- all: \n \
+		- prim_ta: \n \
+		- prim:",
+		"STR",
 	);
 
 	let matches = match opts.parse(&args[1..]) {
@@ -62,7 +66,7 @@ fn main() {
 		None => [60, 10, 1, 0].to_vec(),
 	};
 
-	let p_only = matches.opt_present("p");
+	let p_only = matches.opt_present("m");
 
 	if matches.free.len() != 2 {
 		print_usage(&program, opts);
