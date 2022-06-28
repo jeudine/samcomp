@@ -99,7 +99,7 @@ fn main() {
 	let sam_tgt = match parse_sam(&path) {
 		Ok(sam_tgt) => sam_tgt,
 		Err(err) => {
-			eprintln!("[ERROR]: {},", err);
+			eprintln!("[ERROR]: {} {}", path.display(), err);
 			process::exit(1);
 		}
 	};
@@ -108,7 +108,7 @@ fn main() {
 	let sam_test = match parse_sam(&path) {
 		Ok(sam_test) => sam_test,
 		Err(err) => {
-			eprintln!("[ERROR]: {},", err);
+			eprintln!("[ERROR]: {} {}", path.display(), err);
 			process::exit(1);
 		}
 	};
@@ -139,7 +139,7 @@ fn print_usage(program: &str, opts: Options) {
 	print!("{}", opts.usage(&brief));
 }
 
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone)]
 enum Mode {
 	all,
 	prim_tgt,
@@ -234,16 +234,19 @@ impl fmt::Display for Sam {
 
 fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 	let file = match File::open(&path) {
-		Err(why) => return Err(format!("open {}: {}", path.display(), why)),
+		Err(why) => return Err(format!("open: {}", why)),
 		Ok(file) => file,
 	};
 	let reader = BufReader::new(&file);
 	reader.lines().try_fold(Vec::new(), |mut sam, line| {
-		let line = line.unwrap();
+		let line = match line {
+			Err(err) => return Err(format!("line: {}", err)),
+			Ok(l) => l,
+		};
 		let field: Vec<_> = line.split('\t').collect();
 
 		// Ignore the header section
-		if field[0].chars().next().unwrap() != '@' {
+		if field[0].chars().next().ok_or("parse_sam")? != '@' {
 			let flag: u16 = field[1].parse().unwrap();
 			// Primary alignment
 			if flag == 0 || flag == 16 {
