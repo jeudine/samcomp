@@ -437,7 +437,7 @@ fn compare_all(
 	test: &Mapped,
 	count: &mut Vec<u32>,
 	qualities: &Vec<u8>,
-	file: Option<&mut File>,
+	mut file: Option<&mut File>,
 	distance: u32,
 ) {
 	if test.rname != tgt.rname
@@ -447,6 +447,17 @@ fn compare_all(
 	{
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
+			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+				eprintln!("[ERROR]: write {}", err);
+				process::exit(1);
+			}
+		}
+		return;
+	}
+
+	for tgt_s in &tgt.secondaries {
+		increase_counter(count, qualities, tgt.mapq);
+		if let Some(ref mut file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
 				eprintln!("[ERROR]: write {}", err);
 				process::exit(1);
@@ -468,6 +479,15 @@ fn compare_prim_tgt(
 		|| test.pos_max < tgt.pos_min - distance
 		|| test.pos_min > tgt.pos_max + distance
 	{
+		test.secondaries.iter().for_each(|s| {
+			if s.rname == tgt.rname
+				&& s.strand == tgt.strand
+				&& s.pos >= tgt.pos_min - distance
+				&& s.pos <= tgt.pos_max + distance
+			{
+				return;
+			}
+		});
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
