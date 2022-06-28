@@ -82,7 +82,7 @@ fn main() {
 		None => [60, 10, 1, 0].to_vec(),
 	};
 
-	let mode = match matches.opt_get_default("m", Mode::all) {
+	let mode = match matches.opt_get_default("m", Mode::All) {
 		Ok(m) => m,
 		Err(err) => {
 			eprintln!("[ERROR]: {}", err);
@@ -135,9 +135,9 @@ fn print_usage(program: &str, opts: Options) {
 
 #[derive(Copy, Clone)]
 enum Mode {
-	all,
-	prim_tgt,
-	prim,
+	All,
+	PrimTgt,
+	Prim,
 }
 
 impl FromStr for Mode {
@@ -145,11 +145,11 @@ impl FromStr for Mode {
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		if s == "all" {
-			Ok(Mode::all)
+			Ok(Mode::All)
 		} else if s == "prim_tgt" {
-			Ok(Mode::all)
+			Ok(Mode::PrimTgt)
 		} else if s == "prim" {
-			Ok(Mode::all)
+			Ok(Mode::Prim)
 		} else {
 			Err("Unrecognized mode 'm'".to_string())
 		}
@@ -326,7 +326,7 @@ fn compare_sam(
 	output: &Option<String>,
 	mode: Mode,
 ) {
-	let mut iter = zip(tgt, test);
+	let iter = zip(tgt, test);
 
 	let mut files: Option<(File, File, File)> = match output {
 		Some(output) => {
@@ -379,19 +379,19 @@ fn compare_sam(
 			Sam::Mapped(tgt) => match test {
 				Sam::Mapped(test) => {
 					let distance = (distance * tgt.len as f32).ceil() as u32;
-					let mut file = match &mut files {
+					let file = match &mut files {
 						Some((_, _, file)) => Some(file),
 						None => None,
 					};
 
 					match mode {
-						Mode::all => {
+						Mode::All => {
 							compare_all(&tgt, &test, &mut diff, &qualities, file, distance)
 						}
-						Mode::prim_tgt => {
+						Mode::PrimTgt => {
 							compare_prim_tgt(&tgt, &test, &mut diff, &qualities, file, distance)
 						}
-						Mode::prim => {
+						Mode::Prim => {
 							compare_prim(&tgt, &test, &mut diff, &qualities, file, distance)
 						}
 					}
@@ -440,6 +440,19 @@ fn compare_all(
 	file: Option<&mut File>,
 	distance: u32,
 ) {
+	if test.rname != tgt.rname
+		|| test.strand != tgt.strand
+		|| test.pos_max < tgt.pos_min - distance
+		|| test.pos_min > tgt.pos_max + distance
+	{
+		increase_counter(count, qualities, tgt.mapq);
+		if let Some(file) = file {
+			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+				eprintln!("[ERROR]: write {}", err);
+				process::exit(1);
+			}
+		}
+	}
 }
 
 fn compare_prim_tgt(
@@ -450,6 +463,19 @@ fn compare_prim_tgt(
 	file: Option<&mut File>,
 	distance: u32,
 ) {
+	if test.rname != tgt.rname
+		|| test.strand != tgt.strand
+		|| test.pos_max < tgt.pos_min - distance
+		|| test.pos_min > tgt.pos_max + distance
+	{
+		increase_counter(count, qualities, tgt.mapq);
+		if let Some(file) = file {
+			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+				eprintln!("[ERROR]: write {}", err);
+				process::exit(1);
+			}
+		}
+	}
 }
 
 fn compare_prim(
