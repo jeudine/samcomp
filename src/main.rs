@@ -125,13 +125,7 @@ fn main() {
 
 	eprintln!("[INFO]: {} reads", sam_tgt.len());
 
-	match compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, mode) {
-		Err(err) => {
-			eprintln!("[ERORR]: {}", err);
-			process::exit(1);
-		}
-		_ => {}
-	}
+	compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, mode);
 }
 
 fn print_usage(program: &str, opts: Options) {
@@ -331,7 +325,7 @@ fn compare_sam(
 	qualities: &Vec<u8>,
 	output: &Option<String>,
 	mode: Mode,
-) -> Result<(), String> {
+) {
 	let mut iter = zip(tgt, test);
 
 	let mut files: Option<(File, File, File)> = match output {
@@ -339,7 +333,10 @@ fn compare_sam(
 			let name = format!("{}_gain.txt", output);
 			let path = Path::new(&name);
 			let gain_file = match File::create(path) {
-				Err(err) => return Err(format!("{}", err)),
+				Err(err) => {
+					eprintln!("[ERROR]: create {}", err);
+					process::exit(1);
+				}
 				Ok(f) => f,
 			};
 
@@ -347,14 +344,20 @@ fn compare_sam(
 			let path = Path::new(&name);
 
 			let loss_file = match File::create(path) {
-				Err(err) => return Err(format!("{}", err)),
+				Err(err) => {
+					eprintln!("[ERROR]: create {}", err);
+					process::exit(1);
+				}
 				Ok(f) => f,
 			};
 
 			let name = format!("{}_diff.txt", output);
 			let path = Path::new(&name);
 			let diff_file = match File::create(path) {
-				Err(err) => return Err(format!("{}", err)),
+				Err(err) => {
+					eprintln!("[ERROR]: create {}", err);
+					process::exit(1);
+				}
 				Ok(f) => f,
 			};
 
@@ -369,38 +372,37 @@ fn compare_sam(
 	let mut loss: Vec<u32> = vec![0; qualities_len];
 	let mut diff: Vec<u32> = vec![0; qualities_len];
 
-	iter.try_for_each(|x| {
+	iter.for_each(|x| {
 		let tgt = x.0;
 		let test = x.1;
 		match tgt {
 			Sam::Mapped(tgt) => match test {
 				Sam::Mapped(test) => {
 					let distance = (distance * tgt.len as f32).ceil() as u32;
-					if test.rname != tgt.rname
-						|| test.strand != tgt.strand
-						|| test.pos_max < tgt.pos_min - distance
-						|| test.pos_min > tgt.pos_max + distance
-					{
-						let res = test.secondaries.iter().try_for_each(|x| {
-							if x.rname == tgt.rname {
-								None
-							} else {
-								Some(())
-							}
-						});
-						match res {
-							None => {}
-							Some(_) => {}
+					let mut file = match &mut files {
+						Some((_, _, file)) => Some(file),
+						None => None,
+					};
+
+					match mode {
+						Mode::all => {
+							compare_all(&tgt, &test, &mut diff, &qualities, file, distance)
+						}
+						Mode::prim_tgt => {
+							compare_prim_tgt(&tgt, &test, &mut diff, &qualities, file, distance)
+						}
+						Mode::prim => {
+							compare_prim(&tgt, &test, &mut diff, &qualities, file, distance)
 						}
 					}
 				}
 				Sam::Unmapped(_) => {
 					increase_counter(&mut loss, &qualities, tgt.mapq);
 					if let Some((_, file, _)) = &mut files {
-						match writeln!(file, "{}", tgt) {
-							Err(err) => return Err(format!("{}", err)),
-							Ok(_) => {}
-						};
+						if let Err(err) = writeln!(file, "{}", tgt) {
+							eprintln!("[ERROR]: write {}", err);
+							process::exit(1);
+						}
 					}
 				}
 			},
@@ -408,19 +410,16 @@ fn compare_sam(
 				Sam::Mapped(test) => {
 					increase_counter(&mut gain, &qualities, test.mapq);
 					if let Some((file, _, _)) = &mut files {
-						match writeln!(file, "{}", tgt) {
-							Err(err) => return Err(format!("{}", err)),
-							Ok(_) => {}
-						};
+						if let Err(err) = writeln!(file, "{}", tgt) {
+							eprintln!("[ERROR]: write {}", err);
+							process::exit(1);
+						}
 					}
 				}
 				Sam::Unmapped(_) => {}
 			},
 		}
-		Ok(())
-	})?;
-
-	Ok(())
+	});
 }
 
 #[inline]
@@ -430,6 +429,48 @@ fn increase_counter(count: &mut Vec<u32>, qualities: &Vec<u8>, quality: u8) {
 		if quality > *i.1 {
 			*i.0 += 1;
 			break;
+		}
+	}
+}
+fn compare_all(
+	tgt: &Mapped,
+	test: &Mapped,
+	count: &mut Vec<u32>,
+	qualities: &Vec<u8>,
+	file: Option<&mut File>,
+	distance: u32,
+) {
+}
+
+fn compare_prim_tgt(
+	tgt: &Mapped,
+	test: &Mapped,
+	count: &mut Vec<u32>,
+	qualities: &Vec<u8>,
+	file: Option<&mut File>,
+	distance: u32,
+) {
+}
+
+fn compare_prim(
+	tgt: &Mapped,
+	test: &Mapped,
+	count: &mut Vec<u32>,
+	qualities: &Vec<u8>,
+	file: Option<&mut File>,
+	distance: u32,
+) {
+	if test.rname != tgt.rname
+		|| test.strand != tgt.strand
+		|| test.pos_max < tgt.pos_min - distance
+		|| test.pos_min > tgt.pos_max + distance
+	{
+		increase_counter(count, qualities, tgt.mapq);
+		if let Some(file) = file {
+			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+				eprintln!("[ERROR]: write {}", err);
+				process::exit(1);
+			}
 		}
 	}
 }
