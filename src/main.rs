@@ -9,6 +9,7 @@ use std::path::Path;
 use std::process;
 use std::str::FromStr;
 
+//TODO: check if there are also supplementatry alignments for secondaries
 fn main() {
 	let args: Vec<_> = args().collect();
 	let program = args[0].clone();
@@ -159,7 +160,6 @@ impl FromStr for Mode {
 #[derive(Clone)]
 struct Secondary {
 	rname: String,
-	//TODO: check if there are also supplementatry alignments for secondaries
 	pos: u32,
 	strand: bool,
 	als: i32,
@@ -420,6 +420,13 @@ fn compare_sam(
 			},
 		}
 	});
+
+	let iter = zip(qualities, gain);
+	iter.for_each(|x| println!("G\t{}\t{}", x.0, x.1));
+	let iter = zip(qualities, loss);
+	iter.for_each(|x| println!("G\t{}\t{}", x.0, x.1));
+	let iter = zip(qualities, diff);
+	iter.for_each(|x| println!("G\t{}\t{}", x.0, x.1));
 }
 
 #[inline]
@@ -437,7 +444,7 @@ fn compare_all(
 	test: &Mapped,
 	count: &mut Vec<u32>,
 	qualities: &Vec<u8>,
-	mut file: Option<&mut File>,
+	file: Option<&mut File>,
 	distance: u32,
 ) {
 	if test.rname != tgt.rname
@@ -456,12 +463,26 @@ fn compare_all(
 	}
 
 	for tgt_s in &tgt.secondaries {
-		increase_counter(count, qualities, tgt.mapq);
-		if let Some(ref mut file) = file {
-			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
-				eprintln!("[ERROR]: write {}", err);
-				process::exit(1);
+		let mut absent = true;
+		for test_s in &test.secondaries {
+			if tgt_s.rname == test_s.rname
+				&& tgt_s.strand == test_s.strand
+				&& test_s.pos >= tgt_s.pos - distance
+				&& test_s.pos <= tgt_s.pos + distance
+			{
+				absent = false;
+				break;
 			}
+		}
+		if absent {
+			increase_counter(count, qualities, tgt.mapq);
+			if let Some(file) = file {
+				if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+					eprintln!("[ERROR]: write {}", err);
+					process::exit(1);
+				}
+			}
+			return;
 		}
 	}
 }
