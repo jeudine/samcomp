@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::iter::zip;
 use std::path::Path;
 use std::process;
+use std::str::FromStr;
 
 fn main() {
 	let args: Vec<_> = args().collect();
@@ -37,10 +38,10 @@ fn main() {
 	opts.optopt(
 		"m",
 		"",
-		"Comparison mode [all]\n \
-		- all: \n \
-		- prim_ta: \n \
-		- prim:",
+		"Comparison mode [all]\n\
+		- all: match the primary and the secondary alignments of the test file with the primary and the secondary of the target file respectively\n\
+		- prim_tgt: match the primary and the secondary alignments of the test file with the primar aligments of the target file\n\
+		- prim: match the primary alignments of the test file with the primary aligments of the target file",
 		"STR",
 	);
 
@@ -59,14 +60,35 @@ fn main() {
 
 	let output = matches.opt_str("o");
 
-	let distance: f32 = matches.opt_get_default("d", 1.0).unwrap();
+	let distance: f32 = match matches.opt_get_default("d", 1.0) {
+		Ok(d) => d,
+		Err(err) => {
+			eprintln!("[ERROR]: {} 'd'", err);
+			process::exit(1);
+		}
+	};
 
 	let qualities: Vec<u8> = match matches.opt_str("q") {
-		Some(q) => q.split(',').map(|x| x.parse().unwrap()).collect(),
+		Some(q) => q
+			.split(',')
+			.map(|x| match x.parse() {
+				Ok(u) => u,
+				Err(err) => {
+					eprintln!("[ERROR]: {} 'q'", err);
+					process::exit(1);
+				}
+			})
+			.collect(),
 		None => [60, 10, 1, 0].to_vec(),
 	};
 
-	let p_only = matches.opt_present("m");
+	let mode = match matches.opt_get_default("m", Mode::all) {
+		Ok(m) => m,
+		Err(err) => {
+			eprintln!("[ERROR]: {}", err);
+			process::exit(1);
+		}
+	};
 
 	if matches.free.len() != 2 {
 		print_usage(&program, opts);
@@ -103,7 +125,7 @@ fn main() {
 
 	eprintln!("[INFO]: {} reads", sam_tgt.len());
 
-	match compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, p_only) {
+	match compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, mode) {
 		Err(err) => {
 			eprintln!("[ERORR]: {}", err);
 			process::exit(1);
@@ -115,6 +137,29 @@ fn main() {
 fn print_usage(program: &str, opts: Options) {
 	let brief = format!("Usage: {} [options] <target.sam> <test.sam>", program);
 	print!("{}", opts.usage(&brief));
+}
+
+#[derive(Clone, Copy)]
+enum Mode {
+	all,
+	prim_tgt,
+	prim,
+}
+
+impl FromStr for Mode {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		if s == "all" {
+			Ok(Mode::all)
+		} else if s == "prim_tgt" {
+			Ok(Mode::all)
+		} else if s == "prim" {
+			Ok(Mode::all)
+		} else {
+			Err("Unrecognized mode 'm'".to_string())
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -282,7 +327,7 @@ fn compare_sam(
 	distance: f32,
 	qualities: &Vec<u8>,
 	output: &Option<String>,
-	p_only: bool,
+	mode: Mode,
 ) -> Result<(), String> {
 	let mut iter = zip(tgt, test);
 
