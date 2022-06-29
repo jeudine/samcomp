@@ -49,7 +49,7 @@ fn main() {
 	let matches = match opts.parse(&args[1..]) {
 		Ok(m) => m,
 		Err(f) => {
-			eprintln!("[ERROR]: {}", f.to_string());
+			eprintln!("[ERROR] {}", f.to_string());
 			process::exit(1);
 		}
 	};
@@ -64,7 +64,7 @@ fn main() {
 	let distance: f32 = match matches.opt_get_default("d", 1.0) {
 		Ok(d) => d,
 		Err(err) => {
-			eprintln!("[ERROR]: {} 'd'", err);
+			eprintln!("[ERROR] {} 'd'", err);
 			process::exit(1);
 		}
 	};
@@ -75,7 +75,7 @@ fn main() {
 			.map(|x| match x.parse() {
 				Ok(u) => u,
 				Err(err) => {
-					eprintln!("[ERROR]: {} 'q'", err);
+					eprintln!("[ERROR] {} 'q'", err);
 					process::exit(1);
 				}
 			})
@@ -86,7 +86,7 @@ fn main() {
 	let mode = match matches.opt_get_default("m", Mode::All) {
 		Ok(m) => m,
 		Err(err) => {
-			eprintln!("[ERROR]: {}", err);
+			eprintln!("[ERROR] {}", err);
 			process::exit(1);
 		}
 	};
@@ -100,7 +100,7 @@ fn main() {
 	let sam_tgt = match parse_sam(&path) {
 		Ok(sam_tgt) => sam_tgt,
 		Err(err) => {
-			eprintln!("[ERROR]: {} {}", path.display(), err);
+			eprintln!("[ERROR] {} {}", path.display(), err);
 			process::exit(1);
 		}
 	};
@@ -109,7 +109,7 @@ fn main() {
 	let sam_test = match parse_sam(&path) {
 		Ok(sam_test) => sam_test,
 		Err(err) => {
-			eprintln!("[ERROR]: {} {}", path.display(), err);
+			eprintln!("[ERROR] {} {}", path.display(), err);
 			process::exit(1);
 		}
 	};
@@ -117,14 +117,14 @@ fn main() {
 	//sam_tgt.iter().for_each(|x| println!("{}\t", x));
 	if sam_tgt.len() != sam_test.len() {
 		eprintln!(
-			"[ERROR]: Not the same number of reads in each SAM file (target: {} and test: {})",
+			"[ERROR] Not the same number of reads in each SAM file (target: {} and test: {})",
 			sam_tgt.len(),
 			sam_test.len()
 		);
 		process::exit(1);
 	}
 
-	eprintln!("[INFO]: {} reads", sam_tgt.len());
+	eprintln!("[INFO] {} reads", sam_tgt.len());
 
 	compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, mode);
 }
@@ -335,7 +335,7 @@ fn compare_sam(
 			let path = Path::new(&name);
 			let gain_file = match File::create(path) {
 				Err(err) => {
-					eprintln!("[ERROR]: create {}", err);
+					eprintln!("[ERROR] create {}", err);
 					process::exit(1);
 				}
 				Ok(f) => f,
@@ -346,7 +346,7 @@ fn compare_sam(
 
 			let loss_file = match File::create(path) {
 				Err(err) => {
-					eprintln!("[ERROR]: create {}", err);
+					eprintln!("[ERROR] create {}", err);
 					process::exit(1);
 				}
 				Ok(f) => f,
@@ -356,7 +356,7 @@ fn compare_sam(
 			let path = Path::new(&name);
 			let diff_file = match File::create(path) {
 				Err(err) => {
-					eprintln!("[ERROR]: create {}", err);
+					eprintln!("[ERROR] create {}", err);
 					process::exit(1);
 				}
 				Ok(f) => f,
@@ -401,7 +401,7 @@ fn compare_sam(
 					increase_counter(&mut loss, &qualities, tgt.mapq);
 					if let Some((_, file, _)) = &mut files {
 						if let Err(err) = writeln!(file, "{}", tgt) {
-							eprintln!("[ERROR]: write {}", err);
+							eprintln!("[ERROR] write {}", err);
 							process::exit(1);
 						}
 					}
@@ -412,7 +412,7 @@ fn compare_sam(
 					increase_counter(&mut gain, &qualities, test.mapq);
 					if let Some((file, _, _)) = &mut files {
 						if let Err(err) = writeln!(file, "{}", tgt) {
-							eprintln!("[ERROR]: write {}", err);
+							eprintln!("[ERROR] write {}", err);
 							process::exit(1);
 						}
 					}
@@ -458,7 +458,7 @@ fn compare_all(
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
-				eprintln!("[ERROR]: write {}", err);
+				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
 		}
@@ -481,7 +481,7 @@ fn compare_all(
 			increase_counter(count, qualities, tgt.mapq);
 			if let Some(file) = file {
 				if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
-					eprintln!("[ERROR]: write {}", err);
+					eprintln!("[ERROR] write {}", err);
 					process::exit(1);
 				}
 			}
@@ -515,7 +515,7 @@ fn compare_prim_tgt(
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
-				eprintln!("[ERROR]: write {}", err);
+				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
 		}
@@ -538,7 +538,7 @@ fn compare_prim(
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
-				eprintln!("[ERROR]: write {}", err);
+				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
 		}
