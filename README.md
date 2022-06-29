@@ -28,13 +28,13 @@ Options:
                         UINT1 > UINT2 > ...) as the quality thresholds
                         [60,10,1,0]
     -m STR              Comparison mode [all]
-                        - all: match the primary and the secondary alignments
-                        of the tested file with the primary and the secondary
-                        of the target file respectively
-                        - prim_tgt: match the primary and the secondary
-                        alignments of the tested file with the primar
+                        - all: compare the primary and the secondary
+                        alignments of the tested file with the primary and the
+                        secondary alignments of the target file respectively
+                        - prim_tgt: compare the primary and the secondary
+                        alignments of the tested file with the primary
                         aligments of the target file
-                        - prim: match the primary alignments of the tested
+                        - prim: compare the primary alignments of the tested
                         file with the primary aligments of the target file
 ```
 

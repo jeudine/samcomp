@@ -40,9 +40,9 @@ fn main() {
 		"m",
 		"",
 		"Comparison mode [all]\n\
-		- all: match the primary and the secondary alignments of the tested file with the primary and the secondary of the target file respectively\n\
-		- prim_tgt: match the primary and the secondary alignments of the tested file with the primar aligments of the target file\n\
-		- prim: match the primary alignments of the tested file with the primary aligments of the target file",
+		- all: compare the primary and the secondary alignments of the tested file with the primary and the secondary alignments of the target file respectively\n\
+		- prim_tgt: compare the primary and the secondary alignments of the tested file with the primary aligments of the target file\n\
+		- prim: compare the primary alignments of the tested file with the primary aligments of the target file",
 		"STR",
 	);
 
@@ -96,23 +96,11 @@ fn main() {
 		return;
 	}
 
-	let path = Path::new(&matches.free[0]);
-	let sam_tgt = match parse_sam(&path) {
-		Ok(sam_tgt) => sam_tgt,
-		Err(err) => {
-			eprintln!("[ERROR] {} {}", path.display(), err);
-			process::exit(1);
-		}
-	};
+	let path_tgt = Path::new(&matches.free[0]);
+	let (sam_tgt, nb_mapped_tgt) = parse_sam(&path_tgt, &qualities);
 
-	let path = Path::new(&matches.free[1]);
-	let sam_test = match parse_sam(&path) {
-		Ok(sam_test) => sam_test,
-		Err(err) => {
-			eprintln!("[ERROR] {} {}", path.display(), err);
-			process::exit(1);
-		}
-	};
+	let path_test = Path::new(&matches.free[1]);
+	let (sam_test, nb_mapped_test) = parse_sam(&path_test, &qualities);
 
 	//sam_tgt.iter().for_each(|x| println!("{}\t", x));
 	if sam_tgt.len() != sam_test.len() {
@@ -125,6 +113,13 @@ fn main() {
 	}
 
 	eprintln!("[INFO] {} reads", sam_tgt.len());
+
+	let iter = zip(&qualities, zip(nb_mapped_tgt, nb_mapped_test));
+	for x in iter {
+		println!("M\t{}\t{}\t{}", x.0, x.1 .0, x.1 .1);
+	}
+
+	println!("");
 
 	compare_sam(&sam_tgt, &sam_test, distance, &qualities, &output, mode);
 }
@@ -229,24 +224,35 @@ impl fmt::Display for Sam {
 	}
 }
 
-fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
+fn parse_sam(path: &Path, qualities: &Vec<u8>) -> (Vec<Sam>, Vec<u32>) {
 	let file = match File::open(&path) {
-		Err(why) => return Err(format!("open: {}", why)),
 		Ok(file) => file,
+		Err(err) => {
+			eprintln!("[ERROR] open: {} {}", path.display(), err);
+			process::exit(1);
+		}
 	};
 	let reader = BufReader::new(&file);
-	reader.lines().try_fold(Vec::new(), |mut sam, line| {
+
+	let mut sam = Vec::new();
+	let mut nb_mapped = vec![0; qualities.len()];
+
+	for line in reader.lines() {
 		let line = match line {
-			Err(err) => return Err(format!("line: {}", err)),
 			Ok(l) => l,
+			Err(err) => {
+				eprintln!("[ERROR] line: {} {}", path.display(), err);
+				process::exit(1);
+			}
 		};
 		let field: Vec<_> = line.split('\t').collect();
 
 		// Ignore the header section
-		if field[0].chars().next().ok_or("parse_sam")? != '@' {
+		if field[0].chars().next().unwrap() != '@' {
 			let flag: u16 = field[1].parse().unwrap();
 			// Primary alignment
 			if flag == 0 || flag == 16 {
+				let mapq = field[4].parse().unwrap();
 				sam.push(Sam::Mapped(Mapped {
 					qname: field[0].to_string(),
 					len: field[9].len() as u32,
@@ -254,9 +260,10 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 					rname: field[2].to_string(),
 					pos_min: field[3].parse().unwrap(),
 					pos_max: field[3].parse().unwrap(),
-					mapq: field[4].parse().unwrap(),
+					mapq: mapq,
 					secondaries: Vec::new(),
 				}));
+				increase_counter(&mut nb_mapped, &qualities, mapq);
 			}
 			// Secondary alignment
 			else if (flag & 256) != 0 {
@@ -270,11 +277,12 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 						pos: field[3].parse().unwrap(),
 					}),
 					Sam::Unmapped(x) => {
-						return Err(format!(
-							"Unmapped sequence with a secondary alignment: {} {}",
+						eprintln!(
+							"[ERROR] unmapped sequence with a secondary alignment: {} {}",
 							path.display(),
-							x.qname
-						));
+							x
+						);
+						process::exit(1);
 					}
 				}
 			}
@@ -292,11 +300,12 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 						}
 					}
 					Sam::Unmapped(x) => {
-						return Err(format!(
-							"Unmapped sequence with a supplementary alignment: {} {}",
+						eprintln!(
+							"[ERROR] unmapped sequence with a supplementary alignment: {} {}",
 							path.display(),
-							x.qname
-						));
+							x
+						);
+						process::exit(1);
 					}
 				}
 			}
@@ -305,13 +314,14 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 				sam.push(Sam::Unmapped(Unmapped {
 					qname: field[0].to_string(),
 					len: field[9].len() as u32,
-				}))
+				}));
 			} else {
-				return Err(format!("Unknown flag: {} {}", path.display(), line));
+				eprintln!("[ERROR] unknown flag: {} {}", path.display(), line);
+				process::exit(1);
 			}
 		}
-		Ok(sam)
-	})
+	}
+	(sam, nb_mapped)
 }
 
 fn compare_sam(
@@ -433,10 +443,10 @@ fn increase_counter(count: &mut Vec<u32>, qualities: &Vec<u8>, quality: u8) {
 	for i in iter {
 		if quality >= *i.1 {
 			*i.0 += 1;
-			break;
 		}
 	}
 }
+
 fn compare_all(
 	tgt: &Mapped,
 	test: &Mapped,
