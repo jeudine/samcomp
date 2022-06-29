@@ -162,7 +162,6 @@ struct Secondary {
 	rname: String,
 	pos: u32,
 	strand: bool,
-	als: i32,
 }
 
 #[derive(Clone)]
@@ -205,11 +204,10 @@ impl fmt::Display for Mapped {
 		self.secondaries.iter().try_for_each(|x| {
 			write!(
 				f,
-				"\t[{}\t{}\t{}\t{}]",
+				"\t[{}\t{}\t{}]",
 				x.rname,
 				x.pos,
 				if x.strand { '-' } else { '+' },
-				x.als
 			)
 		})?;
 		fmt::Result::Ok(())
@@ -264,15 +262,12 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 			else if (flag & 256) != 0 {
 				let len = sam.len();
 				let entry = sam.get_mut(len - 1).unwrap();
+
 				match entry {
 					Sam::Mapped(x) => x.secondaries.push(Secondary {
-						strand: (flag & 16) == 1,
+						strand: (flag & 16) != 0,
 						rname: field[2].to_string(),
 						pos: field[3].parse().unwrap(),
-						als: {
-							let al_s: Vec<_> = field[13].split(':').collect();
-							al_s[2].parse().unwrap()
-						},
 					}),
 					Sam::Unmapped(x) => {
 						return Err(format!(
@@ -503,15 +498,15 @@ fn compare_prim_tgt(
 		|| test.pos_max + distance < tgt.pos_min
 		|| test.pos_min > tgt.pos_max + distance
 	{
-		test.secondaries.iter().for_each(|s| {
+		for s in &test.secondaries {
 			if s.rname == tgt.rname
 				&& s.strand == tgt.strand
-				&& s.pos >= tgt.pos_min - distance
+				&& s.pos + distance >= tgt.pos_min
 				&& s.pos <= tgt.pos_max + distance
 			{
 				return;
 			}
-		});
+		}
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
