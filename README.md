@@ -13,8 +13,8 @@ cargo install samcomp
 
 ## Usage
 
-```bash
-Usage: samcomp [options] <target.sam> <test.sam>
+```
+Usage: target/debug/samcomp [options] <target.sam> <test.sam>
 
 Options:
     -h, --help          print this help menu
@@ -29,11 +29,38 @@ Options:
                         [60,10,1,0]
     -m STR              Comparison mode [all]
                         - all: match the primary and the secondary alignments
-                        of the test file with the primary and the secondary of
-                        the target file respectively
+                        of the tested file with the primary and the secondary
+                        of the target file respectively
                         - prim_tgt: match the primary and the secondary
-                        alignments of the test file with the primar aligments
-                        of the target file
-                        - prim: match the primary alignments of the test file
-                        with the primary aligments of the target file
+                        alignments of the tested file with the primar
+                        aligments of the target file
+                        - prim: match the primary alignments of the tested
+                        file with the primary aligments of the target file
 ```
+
+samcomp evaluates the differences between 2 SAM files (target file and tested file) containing the same reads.
+
+Here is an example output:
+
+```
+G	60	5
+G	10	0
+G	1	69
+G	0	0
+
+L	60	0
+L	10	7
+L	1	0
+L	0	0
+
+D	60	106
+D	10	70
+D	1	258
+D	0	154
+```
+
+Each G-line (Gain) gives the number of reads (row 2) which are mapped in the tested file and unmapped in the target file with a mapping quality equal to or greater than the threshold (row 1).
+
+Each L-line (Loss) gives the number of reads (row 2) which are unmapped in the tested file and mapped in the target file with a mapping quality equal to or greater than the threshold (row 1).
+
+Each D-line (Difference) gives the number of reads (row 2) which have a different mapping location in the target and tested file with a target mapping quality equal to or greater than the threshold (row 1).

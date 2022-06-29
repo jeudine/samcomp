@@ -40,9 +40,9 @@ fn main() {
 		"m",
 		"",
 		"Comparison mode [all]\n\
-		- all: match the primary and the secondary alignments of the test file with the primary and the secondary of the target file respectively\n\
-		- prim_tgt: match the primary and the secondary alignments of the test file with the primar aligments of the target file\n\
-		- prim: match the primary alignments of the test file with the primary aligments of the target file",
+		- all: match the primary and the secondary alignments of the tested file with the primary and the secondary of the target file respectively\n\
+		- prim_tgt: match the primary and the secondary alignments of the tested file with the primar aligments of the target file\n\
+		- prim: match the primary alignments of the tested file with the primary aligments of the target file",
 		"STR",
 	);
 
