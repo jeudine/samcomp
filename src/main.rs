@@ -10,6 +10,7 @@ use std::process;
 use std::str::FromStr;
 
 //TODO: check if there are also supplementatry alignments for secondaries
+//TODO: Fields in Sam file, position independant
 fn main() {
 	let args: Vec<_> = args().collect();
 	let program = args[0].clone();
@@ -423,10 +424,12 @@ fn compare_sam(
 
 	let iter = zip(qualities, gain);
 	iter.for_each(|x| println!("G\t{}\t{}", x.0, x.1));
+	println!("");
 	let iter = zip(qualities, loss);
-	iter.for_each(|x| println!("G\t{}\t{}", x.0, x.1));
+	iter.for_each(|x| println!("L\t{}\t{}", x.0, x.1));
 	let iter = zip(qualities, diff);
-	iter.for_each(|x| println!("G\t{}\t{}", x.0, x.1));
+	println!("");
+	iter.for_each(|x| println!("D\t{}\t{}", x.0, x.1));
 }
 
 #[inline]
