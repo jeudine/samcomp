@@ -14,7 +14,7 @@ cargo install samcomp
 ## Usage
 
 ```
-Usage: target/debug/samcomp [options] <target.sam> <test.sam>
+Usage: samcomp [options] <target.sam> <test.sam>
 
 Options:
     -h, --help          print this help menu
