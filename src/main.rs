@@ -10,7 +10,6 @@ use std::process;
 use std::str::FromStr;
 
 //TODO: check if there are also supplementatry alignments for secondaries
-//TODO: Fields in Sam file, position independant
 fn main() {
 	let args: Vec<_> = args().collect();
 	let program = args[0].clone();
@@ -175,7 +174,6 @@ struct Mapped {
 	pos_max: u32,
 	strand: bool,
 	mapq: u8,
-	als: i32,
 	secondaries: Vec<Secondary>,
 }
 
@@ -195,7 +193,7 @@ impl fmt::Display for Mapped {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(
 			f,
-			"{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+			"{}\t{}\t{}\t{}\t{}\t{}\t{}",
 			self.qname,
 			self.len,
 			self.rname,
@@ -203,11 +201,17 @@ impl fmt::Display for Mapped {
 			self.pos_max,
 			if self.strand { '-' } else { '+' },
 			self.mapq,
-			self.als
 		)?;
-		self.secondaries
-			.iter()
-			.try_for_each(|x| write!(f, "\t[{}\t{}\t{}\t{}]", x.rname, x.pos, x.strand, x.als))?;
+		self.secondaries.iter().try_for_each(|x| {
+			write!(
+				f,
+				"\t[{}\t{}\t{}\t{}]",
+				x.rname,
+				x.pos,
+				if x.strand { '-' } else { '+' },
+				x.als
+			)
+		})?;
 		fmt::Result::Ok(())
 	}
 }
@@ -253,10 +257,6 @@ fn parse_sam(path: &Path) -> Result<Vec<Sam>, String> {
 					pos_min: field[3].parse().unwrap(),
 					pos_max: field[3].parse().unwrap(),
 					mapq: field[4].parse().unwrap(),
-					als: {
-						let al_s: Vec<_> = field[13].split(':').collect();
-						al_s[2].parse().unwrap()
-					},
 					secondaries: Vec::new(),
 				}));
 			}
@@ -436,7 +436,7 @@ fn compare_sam(
 fn increase_counter(count: &mut Vec<u32>, qualities: &Vec<u8>, quality: u8) {
 	let iter = zip(count, qualities);
 	for i in iter {
-		if quality > *i.1 {
+		if quality >= *i.1 {
 			*i.0 += 1;
 			break;
 		}
@@ -452,7 +452,7 @@ fn compare_all(
 ) {
 	if test.rname != tgt.rname
 		|| test.strand != tgt.strand
-		|| test.pos_max < tgt.pos_min - distance
+		|| test.pos_max + distance < tgt.pos_min
 		|| test.pos_min > tgt.pos_max + distance
 	{
 		increase_counter(count, qualities, tgt.mapq);
@@ -470,7 +470,7 @@ fn compare_all(
 		for test_s in &test.secondaries {
 			if tgt_s.rname == test_s.rname
 				&& tgt_s.strand == test_s.strand
-				&& test_s.pos >= tgt_s.pos - distance
+				&& test_s.pos + distance >= tgt_s.pos
 				&& test_s.pos <= tgt_s.pos + distance
 			{
 				absent = false;
@@ -500,7 +500,7 @@ fn compare_prim_tgt(
 ) {
 	if test.rname != tgt.rname
 		|| test.strand != tgt.strand
-		|| test.pos_max < tgt.pos_min - distance
+		|| test.pos_max + distance < tgt.pos_min
 		|| test.pos_min > tgt.pos_max + distance
 	{
 		test.secondaries.iter().for_each(|s| {
@@ -532,7 +532,7 @@ fn compare_prim(
 ) {
 	if test.rname != tgt.rname
 		|| test.strand != tgt.strand
-		|| test.pos_max < tgt.pos_min - distance
+		|| test.pos_max + distance < tgt.pos_min
 		|| test.pos_min > tgt.pos_max + distance
 	{
 		increase_counter(count, qualities, tgt.mapq);
