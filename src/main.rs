@@ -416,7 +416,7 @@ fn compare_sam(
 				Sam::Mapped(test) => {
 					increase_counter(&mut gain, &qualities, test.mapq);
 					if let Some((file, _, _)) = &mut files {
-						if let Err(err) = writeln!(file, "{}", tgt) {
+						if let Err(err) = writeln!(file, "{}", test) {
 							eprintln!("[ERROR] write {}", err);
 							process::exit(1);
 						}
