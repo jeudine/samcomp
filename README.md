@@ -90,7 +90,7 @@ Each D-line (Difference) gives the number of reads (col 2) which have a differen
 
 ***
 
-With the option `-o`, it is also possible to output information on the reads belonging to the G, L, and D categories.
+With the option `-o`, it is also possible to output information about the reads belonging to the G, L, and D categories.
 
 The following format is used:
 
