@@ -64,7 +64,7 @@ fn main() {
 	let distance: f32 = match matches.opt_get_default("d", 1.0) {
 		Ok(d) => d,
 		Err(err) => {
-			eprintln!("[ERROR] {} 'd'", err);
+			eprintln!("[ERROR] {}: 'd'", err);
 			process::exit(1);
 		}
 	};
@@ -75,7 +75,7 @@ fn main() {
 			.map(|x| match x.parse() {
 				Ok(u) => u,
 				Err(err) => {
-					eprintln!("[ERROR] {} 'q'", err);
+					eprintln!("[ERROR] {}: 'q'", err);
 					process::exit(1);
 				}
 			})
@@ -86,7 +86,7 @@ fn main() {
 	let mode = match matches.opt_get_default("m", Mode::All) {
 		Ok(m) => m,
 		Err(err) => {
-			eprintln!("[ERROR] {}", err);
+			eprintln!("[ERROR] {}: 'm'", err);
 			process::exit(1);
 		}
 	};
@@ -147,7 +147,7 @@ impl FromStr for Mode {
 		} else if s == "prim" {
 			Ok(Mode::Prim)
 		} else {
-			Err("Unrecognized mode 'm'".to_string())
+			Err("unrecognized mode".to_string())
 		}
 	}
 }
