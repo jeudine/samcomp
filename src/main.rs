@@ -94,7 +94,7 @@ fn main() {
 
 	if matches.free.len() != 2 {
 		print_usage(&program, opts);
-		return;
+		process::exit(1);
 	}
 
 	let path_tgt = Path::new(&matches.free[0]);
