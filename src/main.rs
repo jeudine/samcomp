@@ -50,6 +50,7 @@ fn main() {
 		Ok(m) => m,
 		Err(f) => {
 			eprintln!("[ERROR] {}", f.to_string());
+			print_usage(&program, opts);
 			process::exit(1);
 		}
 	};
