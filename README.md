@@ -97,16 +97,16 @@ With the option `-o`, it is also possible to output information about the reads 
 
 The following format is used:
 
-| Col  | Description         |
-|------|---------------------|
-| 0    | qname               |
-| 1    | length              |
-| 2    | rname               |
-| 3    | max pos             |
-| 4    | min pos             |
-| 5    | strand              |
-| 6    | mapq                |
-| 7... | secondary aligments |
+| Col  | Description                            |
+|------|----------------------------------------|
+| 0    | qname                                  |
+| 1    | length                                 |
+| 2    | rname                                  |
+| 3    | max pos                                |
+| 4    | min pos                                |
+| 5    | strand                                 |
+| 6    | mapq                                   |
+| 7... | secondary and supplementary alignments |
 
 Here is an example output:
 
