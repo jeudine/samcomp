@@ -41,8 +41,9 @@ fn main() {
 		"",
 		"Comparison mode [all]\n\
 		- all: compare the primary and the secondary alignments of the tested file with the primary and the secondary alignments of the target file respectively\n\
-		- prim_tgt: compare the primary and the secondary alignments of the tested file with the primary aligments of the target file\n\
-		- prim: compare the primary alignments of the tested file with the primary aligments of the target file",
+		- prim_tgt: compare the primary, the secondary and the supplementary alignments of the tested file with the primary aligments of the target file\n\
+		- prim: compare the primary alignments of the tested file with the primary aligments of the target file\n\
+		- prim_supp: compare the primary and the supplementary alignments of the tested file with the primary aligments of the target file",
 		"STR",
 	);
 
@@ -135,6 +136,7 @@ enum Mode {
 	All,
 	PrimTgt,
 	Prim,
+	PrimSupp,
 }
 
 impl FromStr for Mode {
@@ -147,6 +149,8 @@ impl FromStr for Mode {
 			Ok(Mode::PrimTgt)
 		} else if s == "prim" {
 			Ok(Mode::Prim)
+		} else if s == "prim_supp" {
+			Ok(Mode::PrimSupp)
 		} else {
 			Err("unrecognized mode".to_string())
 		}
@@ -161,15 +165,23 @@ struct Secondary {
 }
 
 #[derive(Clone)]
+struct Supplementary {
+	rname: String,
+	pos: u32,
+	strand: bool,
+	len: u32,
+}
+
+#[derive(Clone)]
 struct Mapped {
 	qname: String,
 	len: u32,
 	rname: String,
-	pos_min: u32,
-	pos_max: u32,
+	pos: u32,
 	strand: bool,
 	mapq: u8,
 	secondaries: Vec<Secondary>,
+	supplementaries: Vec<Supplementary>,
 }
 
 #[derive(Clone)]
@@ -188,24 +200,35 @@ impl fmt::Display for Mapped {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(
 			f,
-			"{}\t{}\t{}\t{}\t{}\t{}\t{}",
+			"{}\t{}\t{}\t{}\t{}\t{}",
 			self.qname,
 			self.len,
 			self.rname,
-			self.pos_min,
-			self.pos_max,
+			self.pos,
 			if self.strand { '-' } else { '+' },
 			self.mapq,
 		)?;
-		self.secondaries.iter().try_for_each(|x| {
+
+		for x in &self.secondaries {
 			write!(
 				f,
 				"\t[{}\t{}\t{}]",
 				x.rname,
 				x.pos,
 				if x.strand { '-' } else { '+' },
-			)
-		})?;
+			)?;
+		}
+
+		for x in &self.supplementaries {
+			write!(
+				f,
+				"\t[{}\t{}\t{}\t{}]",
+				x.rname,
+				x.pos,
+				x.len,
+				if x.strand { '-' } else { '+' },
+			)?;
+		}
 		fmt::Result::Ok(())
 	}
 }
@@ -259,10 +282,10 @@ fn parse_sam(path: &Path, qualities: &Vec<u8>) -> (Vec<Sam>, Vec<u32>) {
 					len: field[9].len() as u32,
 					strand: (flag == 16),
 					rname: field[2].to_string(),
-					pos_min: field[3].parse().unwrap(),
-					pos_max: field[3].parse().unwrap(),
+					pos: field[3].parse().unwrap(),
 					mapq: mapq,
 					secondaries: Vec::new(),
+					supplementaries: Vec::new(),
 				}));
 				increase_counter(&mut nb_mapped, &qualities, mapq);
 			}
@@ -289,17 +312,15 @@ fn parse_sam(path: &Path, qualities: &Vec<u8>) -> (Vec<Sam>, Vec<u32>) {
 			}
 			// Supplementary alignment
 			else if (flag & 2048) != 0 {
-				let pos = field[3].parse().unwrap();
 				let len = sam.len();
 				let entry = sam.get_mut(len - 1).unwrap();
 				match entry {
-					Sam::Mapped(x) => {
-						if x.pos_min > pos {
-							x.pos_min = pos;
-						} else if x.pos_max < pos {
-							x.pos_max = pos;
-						}
-					}
+					Sam::Mapped(x) => x.supplementaries.push(Supplementary {
+						strand: (flag & 16) != 0,
+						rname: field[2].to_string(),
+						pos: field[3].parse().unwrap(),
+						len: field[9].len() as u32,
+					}),
 					Sam::Unmapped(x) => {
 						eprintln!(
 							"[ERROR] unmapped sequence with a supplementary alignment: {} {}",
@@ -401,6 +422,9 @@ fn compare_sam(
 						Mode::Prim => {
 							compare_prim(&tgt, &test, &mut diff, &qualities, file, distance)
 						}
+						Mode::PrimSupp => {
+							compare_prim_supp(&tgt, &test, &mut diff, &qualities, file, distance)
+						}
 					}
 				}
 				Sam::Unmapped(_) => {
@@ -458,8 +482,8 @@ fn compare_all(
 ) {
 	if test.rname != tgt.rname
 		|| test.strand != tgt.strand
-		|| test.pos_max + distance < tgt.pos_min
-		|| test.pos_min > tgt.pos_max + distance
+		|| test.pos + distance < tgt.pos
+		|| test.pos > tgt.pos + distance
 	{
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
@@ -506,14 +530,24 @@ fn compare_prim_tgt(
 ) {
 	if test.rname != tgt.rname
 		|| test.strand != tgt.strand
-		|| test.pos_max + distance < tgt.pos_min
-		|| test.pos_min > tgt.pos_max + distance
+		|| test.pos + distance < tgt.pos
+		|| test.pos > tgt.pos + distance
 	{
+		for s in &test.supplementaries {
+			if s.rname == tgt.rname
+				&& s.strand == tgt.strand
+				&& s.pos + distance >= tgt.pos
+				&& s.pos <= tgt.pos + distance
+			{
+				return;
+			}
+		}
+
 		for s in &test.secondaries {
 			if s.rname == tgt.rname
 				&& s.strand == tgt.strand
-				&& s.pos + distance >= tgt.pos_min
-				&& s.pos <= tgt.pos_max + distance
+				&& s.pos + distance >= tgt.pos
+				&& s.pos <= tgt.pos + distance
 			{
 				return;
 			}
@@ -538,9 +572,41 @@ fn compare_prim(
 ) {
 	if test.rname != tgt.rname
 		|| test.strand != tgt.strand
-		|| test.pos_max + distance < tgt.pos_min
-		|| test.pos_min > tgt.pos_max + distance
+		|| test.pos + distance < tgt.pos
+		|| test.pos > tgt.pos + distance
 	{
+		increase_counter(count, qualities, tgt.mapq);
+		if let Some(file) = file {
+			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+				eprintln!("[ERROR] write {}", err);
+				process::exit(1);
+			}
+		}
+	}
+}
+
+fn compare_prim_supp(
+	tgt: &Mapped,
+	test: &Mapped,
+	count: &mut Vec<u32>,
+	qualities: &Vec<u8>,
+	file: Option<&mut File>,
+	distance: u32,
+) {
+	if test.rname != tgt.rname
+		|| test.strand != tgt.strand
+		|| test.pos + distance < tgt.pos
+		|| test.pos > tgt.pos + distance
+	{
+		for s in &test.supplementaries {
+			if s.rname == tgt.rname
+				&& s.strand == tgt.strand
+				&& s.pos + distance >= tgt.pos
+				&& s.pos <= tgt.pos + distance
+			{
+				return;
+			}
+		}
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
 			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
