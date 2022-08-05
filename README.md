@@ -18,8 +18,8 @@ Usage: samcomp [options] <target.sam> <test.sam>
 
 Options:
     -h, --help          print this help menu
-    -o NAME             generate gain, loss and diff files and output them
-                        with the prefix NAME
+    -o NAME             generate gain, loss and diff files with the name of
+                        the reads and output them with the prefix NAME
     -d FLOAT            a location in the tested file is considered to be
                         similar to the one in the target file if the distance
                         between both locations is less than FLOAT fraction of
@@ -38,8 +38,7 @@ Options:
                         file with the primary aligments of the target file
                         - prim_supp: compare the primary and the supplementary
                         alignments of the tested file with the primary
-                        aligments of the target file
-```
+                        aligments of the target file```
 
 samcomp evaluates the differences between 2 SAM files (target file and tested file) containing the same reads.
 
@@ -93,23 +92,4 @@ Each D-line (Difference) gives the number of reads (col 2) which have a differen
 
 ***
 
-With the option `-o`, it is also possible to output information about the reads belonging to the G, L, and D categories.
-
-The following format is used:
-
-| Col  | Description                            |
-|------|----------------------------------------|
-| 0    | qname                                  |
-| 1    | length                                 |
-| 2    | rname                                  |
-| 3    | max pos                                |
-| 4    | min pos                                |
-| 5    | strand                                 |
-| 6    | mapq                                   |
-| 7... | secondary and supplementary alignments |
-
-Here is an example output:
-
-```
-SRR11292123.143	15783	NC_000010.11	41871595	41871595	-	3	[NC_000004.12	49110481	+]	[NW_021159991.1	35760	+]	[NC_000020.11	31053466	-]	[NC_000004.12	49629650	-]
-```
+With the option `-o`, it is also possible to output the names (one per line) of the reads belonging to the G, L, and D categories.

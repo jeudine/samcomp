@@ -19,7 +19,7 @@ fn main() {
 	opts.optopt(
 		"o",
 		"",
-		"generate gain, loss and diff files and output them with the prefix NAME",
+		"generate gain, loss and diff files with the name of the reads and output them with the prefix NAME",
 		"NAME",
 	);
 
@@ -430,7 +430,7 @@ fn compare_sam(
 				Sam::Unmapped(_) => {
 					increase_counter(&mut loss, &qualities, tgt.mapq);
 					if let Some((_, file, _)) = &mut files {
-						if let Err(err) = writeln!(file, "{}", tgt) {
+						if let Err(err) = writeln!(file, "{}", tgt.qname) {
 							eprintln!("[ERROR] write {}", err);
 							process::exit(1);
 						}
@@ -441,7 +441,7 @@ fn compare_sam(
 				Sam::Mapped(test) => {
 					increase_counter(&mut gain, &qualities, test.mapq);
 					if let Some((file, _, _)) = &mut files {
-						if let Err(err) = writeln!(file, "{}", test) {
+						if let Err(err) = writeln!(file, "{}", test.qname) {
 							eprintln!("[ERROR] write {}", err);
 							process::exit(1);
 						}
@@ -487,7 +487,7 @@ fn compare_all(
 	{
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
-			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+			if let Err(err) = writeln!(file, "{}", tgt.qname) {
 				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
@@ -510,7 +510,7 @@ fn compare_all(
 		if absent {
 			increase_counter(count, qualities, tgt.mapq);
 			if let Some(file) = file {
-				if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+				if let Err(err) = writeln!(file, "{}", tgt.qname) {
 					eprintln!("[ERROR] write {}", err);
 					process::exit(1);
 				}
@@ -554,7 +554,7 @@ fn compare_prim_tgt(
 		}
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
-			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+			if let Err(err) = writeln!(file, "{}", tgt.qname) {
 				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
@@ -577,7 +577,7 @@ fn compare_prim(
 	{
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
-			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+			if let Err(err) = writeln!(file, "{}", tgt.qname) {
 				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
@@ -609,7 +609,7 @@ fn compare_prim_supp(
 		}
 		increase_counter(count, qualities, tgt.mapq);
 		if let Some(file) = file {
-			if let Err(err) = writeln!(file, ">>>>>>>>\n{}\n<<<<<<<<\n{}", tgt, test) {
+			if let Err(err) = writeln!(file, "{}", tgt.qname) {
 				eprintln!("[ERROR] write {}", err);
 				process::exit(1);
 			}
