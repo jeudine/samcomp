@@ -1,6 +1,6 @@
 [package]
 name = "samcomp"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Julien Eudine <julien@eudine.fr>"]
 description = "A comparison tool for Sequence Alignment/Map files."
