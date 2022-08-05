@@ -38,7 +38,8 @@ Options:
                         file with the primary aligments of the target file
                         - prim_supp: compare the primary and the supplementary
                         alignments of the tested file with the primary
-                        aligments of the target file```
+                        aligments of the target file
+```
 
 samcomp evaluates the differences between 2 SAM files (target file and tested file) containing the same reads.
 
