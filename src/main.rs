@@ -9,7 +9,6 @@ use std::path::Path;
 use std::process;
 use std::str::FromStr;
 
-//TODO: check if there are also supplementatry alignments for secondaries
 fn main() {
 	let args: Vec<_> = args().collect();
 	let program = args[0].clone();
